@@ -1,6 +1,3 @@
-extern crate libc;
-extern crate rand;
-
 mod util;
 mod display;
 mod terminal;
@@ -520,14 +517,22 @@ fn get_input(stdin: &mut std::io::Stdin) -> Option<Key> {
                                 _ => None
                             }
                         },
+<<<<<<< HEAD
                         Err(msg) => panic!("{}", format!("could not read from standard in: {}", msg))
+=======
+                        Err(msg) => panic!("could not read from standard in: {}", msg)
+>>>>>>> 8370a98f25620f7cb2cd46a1d626cd1c59b3a759
                     }
                 },
                 Ok(n) => Some(Key::Char(n.chars().next().unwrap())),
                 _ => None
             }
         },
+<<<<<<< HEAD
         Err(msg) => panic!("{}", format!("could not read from standard in: {}", msg))
+=======
+        Err(msg) => panic!("could not read from standard in: {}", msg)
+>>>>>>> 8370a98f25620f7cb2cd46a1d626cd1c59b3a759
     }
 }
 
