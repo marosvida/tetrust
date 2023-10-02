@@ -27,6 +27,14 @@ enum GameUpdate {
     Tick,
 }
 
+
+#[derive(PartialEq, Eq)]
+enum GameOver {
+    TopOut,
+    LockOut,
+    BlockOut
+}
+
 #[derive(Debug, Copy, Clone)]
 struct Point {
     x: i32,
@@ -48,13 +56,10 @@ impl Board {
         }
         for row in 0..BOARD_HEIGHT {
             for col in 0..BOARD_WIDTH {
-                match self.cells[row as usize][col as usize] {
-                    Some(color) => {
-                        let c = 1 + (col * 2);
-                        display.set_text(" ", c, row, color, color);
-                        display.set_text(" ", c + 1, row, color, color);
-                    },
-                    None => ()
+                if let Some(color) = self.cells[row as usize][col as usize] {
+                    let c = 1 + (col * 2);
+                    display.set_text(" ", c, row, color, color);
+                    display.set_text(" ", c + 1, row, color, color);
                 }
             }
         }
@@ -286,11 +291,19 @@ impl PieceBag {
     }
 }
 
+struct Score {
+    level: u32,
+    lines: u32,
+    score: u32,
+}
+
 struct Game {
     board: Board,
     piece_bag: PieceBag,
     piece: Piece,
     piece_position: Point,
+    score: Score,
+
 }
 
 impl Game {
@@ -304,7 +317,12 @@ impl Game {
             },
             piece_bag: piece_bag,
             piece: piece,
-            piece_position: Point{ x: 0, y: 0 }
+            piece_position: Point{ x: 0, y: 0 },
+            score: Score{
+                level: 1,
+                lines: 0,
+                score: 0,
+            }
         };
 
         game.place_new_piece();
@@ -517,22 +535,14 @@ fn get_input(stdin: &mut std::io::Stdin) -> Option<Key> {
                                 _ => None
                             }
                         },
-<<<<<<< HEAD
-                        Err(msg) => panic!("{}", format!("could not read from standard in: {}", msg))
-=======
                         Err(msg) => panic!("could not read from standard in: {}", msg)
->>>>>>> 8370a98f25620f7cb2cd46a1d626cd1c59b3a759
                     }
                 },
                 Ok(n) => Some(Key::Char(n.chars().next().unwrap())),
                 _ => None
             }
         },
-<<<<<<< HEAD
-        Err(msg) => panic!("{}", format!("could not read from standard in: {}", msg))
-=======
         Err(msg) => panic!("could not read from standard in: {}", msg)
->>>>>>> 8370a98f25620f7cb2cd46a1d626cd1c59b3a759
     }
 }
 
