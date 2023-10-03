@@ -346,6 +346,7 @@ impl Game {
 
         // Render the level
         let left_margin = BOARD_WIDTH * 2 + 5;
+        //let level = self.score.level.to_string();
         display.set_text("Level: 1", left_margin, 3, Color::Red, Color::Black);
 
         // Render the currently falling piece
@@ -423,7 +424,8 @@ impl Game {
     fn advance_game(&mut self) -> bool {
         if !self.move_piece(0, 1) {
             self.board.lock_piece(&self.piece, self.piece_position);
-            self.board.clear_lines();
+            self.score.lines += self.board.clear_lines();
+            self.score.level = 1 + (self.score.lines / 10);
             self.piece = self.piece_bag.pop();
 
             if !self.place_new_piece() {
