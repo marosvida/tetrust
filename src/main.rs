@@ -303,7 +303,7 @@ struct Game {
     piece: Piece,
     piece_position: Point,
     score: Score,
-
+    game_over: Option<GameOver>,
 }
 
 impl Game {
@@ -322,7 +322,8 @@ impl Game {
                 level: 1,
                 lines: 0,
                 score: 0,
-            }
+            },
+            game_over: None,
         };
 
         game.place_new_piece();
@@ -344,10 +345,16 @@ impl Game {
         // Render the board
         self.board.render(display);
 
-        // Render the level
+        // Render the scores
         let left_margin = BOARD_WIDTH * 2 + 5;
-        //let level = self.score.level.to_string();
-        display.set_text("Level: 1", left_margin, 3, Color::Red, Color::Black);
+        let level = format!("Level: {}", self.score.level);
+        display.set_text(&level, left_margin, 3, Color::Red, Color::Black);
+
+        let lines = format!("Cleared lines: {}", self.score.lines);
+        display.set_text(&lines, left_margin, 4, Color::Red, Color::Black);
+
+        let score = format!("Score: {}", self.score.score);
+        display.set_text(&score, left_margin, 5, Color::Red, Color::Black);
 
         // Render the currently falling piece
         let x = 1 + (2 * self.piece_position.x);
@@ -411,6 +418,9 @@ impl Game {
             y: 0,
         };
         if self.board.collision_test(&self.piece, origin) {
+            // GAME OVER
+            self.game_over = Some(GameOver::BlockOut);
+            panic!("The piece hit the top of the board!! GAME OVER!!!");
             false
         } else {
             self.piece_position = origin;
@@ -424,7 +434,9 @@ impl Game {
     fn advance_game(&mut self) -> bool {
         if !self.move_piece(0, 1) {
             self.board.lock_piece(&self.piece, self.piece_position);
-            self.score.lines += self.board.clear_lines();
+            let num_cleared_lines = self.board.clear_lines();
+            self.score.score += num_cleared_lines * self.score.level * 10;
+            self.score.lines += num_cleared_lines;
             self.score.level = 1 + (self.score.lines / 10);
             self.piece = self.piece_bag.pop();
 
