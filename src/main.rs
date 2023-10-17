@@ -472,12 +472,16 @@ impl Game {
     fn play(&mut self, display: &mut Display) {
         let (tx_event, rx_event) = mpsc::channel();
 
+        let level = self.score.level;
+
         // Spawn a thread which sends periodic game ticks to advance the piece
         {
             let tx_event = tx_event.clone();
+
             thread::spawn(move || {
                 loop {
-                    thread::sleep(Duration::from_millis(500));
+                    let speed = (0.8 - ((level - 1) as f32 * 0.007)).powf((level - 1) as f32);
+                    thread::sleep(Duration::from_millis((speed * 1000.0) as u64));
                     tx_event.send(GameUpdate::Tick).unwrap();
                 };
             });
