@@ -27,12 +27,10 @@ enum GameUpdate {
     Tick,
 }
 
-
-#[derive(PartialEq, Eq)]
 enum GameOver {
-    TopOut,
     LockOut,
-    BlockOut
+    BlockOut,
+    TopOut,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -231,6 +229,18 @@ impl Piece {
             }
         }
     }
+
+    fn is_below_skyline(&self) -> bool {
+        let mut below = false;
+        self.each_point(&mut |row, _| {
+            let y = row as u32;
+            if y < BOARD_HEIGHT {
+                below = true;
+            }
+        });
+
+        below
+    }
 }
 
 /// Implements a queue of randomized tetrominoes.
@@ -263,9 +273,10 @@ impl PieceBag {
 
     /// Returns a copy of the next piece in the queue.
     fn peek(&self) -> Piece {
-        match self.pieces.first() {
-            Some(p) => p.clone(),
-            None => panic!("No next piece in piece bag")
+        if let Some(p) = self.pieces.first() {
+            p.clone()
+        } else {
+            panic!("No next piece in piece bag");
         }
     }
 
@@ -302,8 +313,10 @@ struct Game {
     piece_bag: PieceBag,
     piece: Piece,
     piece_position: Point,
-    score: Score,
-    game_over: Option<GameOver>,
+    level: u32,
+    lines_cleared: u32,
+    score: u32,
+    drops: u32,
 }
 
 impl Game {
@@ -315,19 +328,22 @@ impl Game {
             board: Board{
                 cells: [[None; BOARD_WIDTH as usize]; BOARD_HEIGHT as usize]
             },
-            piece_bag: piece_bag,
-            piece: piece,
+            piece_bag,
+            piece,
             piece_position: Point{ x: 0, y: 0 },
-            score: Score{
-                level: 1,
-                lines: 0,
-                score: 0,
-            },
-            game_over: None,
+            level: 1,
+            lines_cleared: 0,
+            score: 0,
+            drops: 0,
         };
 
         game.place_new_piece();
         game
+    }
+
+    // Called every time we cleared lines and update level accordingly
+    fn update_level(&self) -> u32 {
+        (self.lines_cleared / 10) + 1
     }
 
     /// Returns the new position of the current piece if it were to be dropped.
@@ -347,13 +363,17 @@ impl Game {
 
         // Render the scores
         let left_margin = BOARD_WIDTH * 2 + 5;
-        let level = format!("Level: {}", self.score.level);
+        let level = format!("Level: {}", self.level);
         display.set_text(&level, left_margin, 3, Color::Red, Color::Black);
 
-        let lines = format!("Cleared lines: {}", self.score.lines);
+        // Render the lines cleared
+        let left_margin = BOARD_WIDTH * 2 + 5;
+        let lines = format!("Lines cleared: {}", self.lines_cleared);
         display.set_text(&lines, left_margin, 4, Color::Red, Color::Black);
 
-        let score = format!("Score: {}", self.score.score);
+        // Render the score
+        let left_margin = BOARD_WIDTH * 2 + 5;
+        let score = format!("score: {}", self.score);
         display.set_text(&score, left_margin, 5, Color::Red, Color::Black);
 
         // Render the currently falling piece
@@ -428,20 +448,46 @@ impl Game {
         }
     }
 
+    // Update the score according to current level, number of lines cleared
+    fn update_score(&mut self, cleared_lines: u32) {
+        match cleared_lines {
+            0 => {}, // Shouldn't happen, but just in case
+            1 => self.score += 100 * self.level,
+            2 => self.score += 300 * self.level,
+            3 => self.score += 500 * self.level,
+            4 => self.score += 800 * self.level,
+            _ => unreachable!()
+        }
+    }
+
     /// Advances the game by moving the current piece down one step. If the piece cannot move down, the piece
     /// is locked and the game is set up to drop the next piece.  Returns true if the game could be advanced,
     /// false if the player has lost.
     fn advance_game(&mut self) -> bool {
         if !self.move_piece(0, 1) {
             self.board.lock_piece(&self.piece, self.piece_position);
-            let num_cleared_lines = self.board.clear_lines();
-            self.score.score += num_cleared_lines * self.score.level * 10;
-            self.score.lines += num_cleared_lines;
-            self.score.level = 1 + (self.score.lines / 10);
+            if !self.piece.is_below_skyline() {
+                panic!("Lock Out");
+            }
+
+            // Did we cleared any lines?
+            let cleared_lines = self.board.clear_lines();
+            if cleared_lines > 0 {
+                self.lines_cleared += cleared_lines;
+
+                // We update the score before leveling up
+                self.update_score(cleared_lines);
+                self.level = self.update_level();
+            }
+
+            // Add the drop bonus
+            self.score += self.drops;
+            self.drops = 0;
+
             self.piece = self.piece_bag.pop();
 
             if !self.place_new_piece() {
-                return false;
+                panic!("Block Out");
             }
         }
 
@@ -451,7 +497,14 @@ impl Game {
     /// Drops the current piece to the lowest spot on the board where it fits without collisions and
     /// advances the game.
     fn drop_piece(&mut self) -> bool {
-        while self.move_piece(0, 1) {}
+        while self.move_piece(0, 1) {
+            self.drops += 2;
+        }
+        self.advance_game()
+    }
+
+    fn soft_drop(&mut self) -> bool {
+        self.drops += 1;
         self.advance_game()
     }
 
@@ -459,7 +512,7 @@ impl Game {
         match key {
             Key::Left => self.move_piece(-1, 0),
             Key::Right => self.move_piece(1, 0),
-            Key::Down => self.advance_game(),
+            Key::Down => self.soft_drop(),
             Key::Up => self.rotate_piece(Direction::Left),
             Key::Space => self.drop_piece(),
             Key::Char('q') => self.rotate_piece(Direction::Left),
@@ -494,9 +547,8 @@ impl Game {
                 let stdin = &mut std::io::stdin();
 
                 loop {
-                    match get_input(stdin) {
-                        Some(k) => tx_event.send(GameUpdate::KeyPress(k)).unwrap(),
-                        None => ()
+                    if let Some(k) = get_input(stdin) {
+                        tx_event.send(GameUpdate::KeyPress(k)).unwrap();
                     }
                 }
             });
